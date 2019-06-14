@@ -13,9 +13,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/parnurzeal/gorequest"
+	"github.com/robfig/cron"
+	"math/rand"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 /**
@@ -85,6 +89,7 @@ func fetchStar(uid , token string) {
 	request := gorequest.New()
 	resp, body, errs := request.Get(url).
 		Set("user-id", uid).
+		Set("ucenter-id", uid).
 		Set("ucenter-token", token).
 		End()
 	if errs != nil {
@@ -96,41 +101,33 @@ func fetchStar(uid , token string) {
 
 func main() {
 	//参考 version 2 https://my.oschina.net/zengsai/blog/3719
-	//login("13552885937", "666666")
-	//os.Exit(1)
+	opSys := runtime.GOOS
+	fmt.Println(opSys)
 	f := bufio.NewReader(os.Stdin) //读取输入的内容
 	fmt.Print("请输入登录用的手机号>")
-	var Input string
 	mobile, _ := f.ReadString('\n') //定义一行输入的内容分隔符。
+	mobile = strings.TrimSpace(mobile)
+	mobile = strings.Trim(mobile, "\r")
 	if fetchSec(mobile) == true {
 		fmt.Println("发送成功，请查收")
 	}
 	fmt.Print("请查看手机获取验证码，并输入>")
 	sec, _ := f.ReadString('\n')
+	sec = strings.TrimSpace(sec)
+	sec = strings.Trim(sec, "\r")
 	id, token , err := login(mobile, sec)
 	if 	err != nil {
 		fmt.Println(err)
 	}
 
-	fetchStar(strconv.FormatFloat(id, 'E', -1, 64), token)
-
-
-	fmt.Println("字符串长度", len(Input))
-	for i := 0; i < len(Input); i++ {
-		if i >= len(Input)-2 { //最后一个字符,输出数字
-			fmt.Print(Input[i])
-		} else {
-			fmt.Print(string(Input[i]))
-		}
-	}
-	//windows平台操作
-	//分隔符'\n' Input是 xxx\r\n    编码是1310
-	//分隔符'\r' Input是 xxx\r  编码是13
-	Input = strings.Replace(Input, "\n", "", -1)
-	Input = strings.Replace(Input, "\r", "", -1)
-	fmt.Println("")
-	fmt.Println("字符串长度", len(Input))
-	for i := 0; i < len(Input); i++ {
-		fmt.Print(string(Input[i]))
-	}
+	c := cron.New()
+	spec := "0 */30 * * * ?"
+	c.AddFunc(spec, func() {
+		rand.Seed(time.Now().UnixNano())
+		var rd int = rand.Intn(29)
+		time.Sleep(time.Duration(rd) * time.Minute)
+		fetchStar(strconv.FormatFloat(id, 'E', -1, 64), token)
+	})
+	c.Start()
+	select{}
 }
