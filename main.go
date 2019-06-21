@@ -54,7 +54,7 @@ func fetchSec(mobile string) bool {
 /*
 登录
 */
-func login(mobile, sec string) (uid float64, token string , e error) {
+func login(mobile, sec string) (ucenter_id float64, token string ,star_id string, e error) {
 	url := "http://api-release-planet.hard-chain.cn/ucenter/account/login"
 	body := map[string]string {
 		"captcha": sec,
@@ -74,22 +74,54 @@ func login(mobile, sec string) (uid float64, token string , e error) {
 	}
 	if ret["code"].(float64) == 200 {
 		data := ret["data"].(map[string]interface{})
-		id := data["id"].(float64)
+		ucenter_id := data["id"].(float64)
+		last_view_stars := data["last_view_stars"].(float64)
 		token := data["ucenter_token"].(string)
-		return id, token, nil
+		//return ucenter_id, token,strconv.Itoa(last_view_stars), nil
+		return ucenter_id, token,strconv.FormatFloat(last_view_stars,'f', -1, 64), nil
 	}else{
-		return 0,"" , fmt.Errorf("登录失败")
+		return 0,"" ,"0", fmt.Errorf("登录失败")
 	}
 }
+
+func details(ucenter_id, token, star_id string) (uid, ucenterid, tk string, e error){
+	url := "http://api-release-planet.hard-chain.cn/fans/star/details?star_id=" + star_id
+	fmt.Println(url)
+	request := gorequest.New()
+	resp, body, errs := request.Get(url).
+		Set("ucenter-id", ucenter_id).
+		Set("ucenter-token", token).
+		End()
+	if errs != nil {
+		fmt.Print(errs)
+	}
+	fmt.Println(resp.Status)
+	fmt.Println(body)
+	var ret map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &ret); err != nil {
+		fmt.Println(err)
+	}
+	if ret["code"].(float64) == 200 {
+		data := ret["data"].(map[string]interface{})
+		userinfo := data["userinfo"].(map[string]interface{})
+		uid_fl := userinfo["id"].(float64)
+		uid = strconv.FormatFloat(uid_fl, 'f', -1, 64)
+		return uid, ucenter_id, token, nil
+	}else{
+		return "0","0","0", fmt.Errorf("xxxxxx")
+	}
+}
+
+
 /**
 抓取碎片
  */
-func fetchStar(uid , token string) {
+func fetchStar(uid , ucenter_id, token string) {
 	url := "http://api-release-planet.hard-chain.cn/fans/mine/gatherDebris"
 	request := gorequest.New()
 	resp, body, errs := request.Get(url).
 		Set("user-id", uid).
-		Set("ucenter-id", uid).
+		Set("ucenter-id", ucenter_id).
 		Set("ucenter-token", token).
 		End()
 	if errs != nil {
@@ -115,18 +147,22 @@ func main() {
 	sec, _ := f.ReadString('\n')
 	sec = strings.TrimSpace(sec)
 	sec = strings.Trim(sec, "\r")
-	id, token , err := login(mobile, sec)
+	ucenter_id, token, star_id , err := login(mobile, sec)
 	if 	err != nil {
 		fmt.Println(err)
 	}
-
+	fmt.Println(star_id)
+	uid, ucenterid, tk ,_ := details(strconv.FormatFloat(ucenter_id, 'E', -1, 64), token,star_id)
+	fmt.Println(uid)
+	fmt.Println(ucenterid)
+	fmt.Println(tk)
 	c := cron.New()
 	spec := "0 */30 * * * ?"
 	c.AddFunc(spec, func() {
 		rand.Seed(time.Now().UnixNano())
 		var rd int = rand.Intn(29)
 		time.Sleep(time.Duration(rd) * time.Minute)
-		fetchStar(strconv.FormatFloat(id, 'E', -1, 64), token)
+		fetchStar(uid,ucenterid, tk)
 	})
 	c.Start()
 	select{}
